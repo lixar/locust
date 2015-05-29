@@ -68,3 +68,37 @@ Optionally, you can also set them prior to invoking locust.
 .. code::
 
     SSL_KEY=/path/to/key.pem SSL_CERT=/path/to/cert.pem locust
+
+
+Enable Authenticated Access
+===========================
+
+.. attention::
+
+    Using this feature in no way makes the data transfered between locusts or between
+    the locust master and the client secure.
+
+Locust supports basic access authentication. This is a simply form of authentication
+where a browser will prompt for a username and password if a HTTP 401 response is
+returned with a special header.
+
+The idea behind using this sort of authentication is not for securing the data transferred
+between the client and locust, as that is still transmitted in plain text, however, it will
+prevent unauthorized tampering via the web interface with a test. This could also be useful
+if a load tester is used in a multi-developer environment where each developer could invoke
+locust with their own credentials.
+
+Enabling support for basic authentication is done by specifying two environment variables.
+
+You can put the following lines in your Bash `.profile` or `.bashrc`.
+
+.. code::
+
+    export LOCUST_USER_NAME=my_user
+    export LOCUST_PASSWORD=secret
+
+Optionally, you can also set them prior to invoking locust.
+
+.. code::
+
+    LOCUST_USER_NAME=my_user LOCUST_PASSWORD=secret locust
