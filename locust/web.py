@@ -165,7 +165,7 @@ def request_stats():
     is_distributed = isinstance(runners.locust_runner, MasterLocustRunner)
     if is_distributed:
         report["slave_count"] = runners.locust_runner.slave_count
-    
+
     report["state"] = runners.locust_runner.state
     report["user_count"] = runners.locust_runner.user_count
     return json.dumps(report)
@@ -194,7 +194,7 @@ def start(locust, options):
     if 'SSL_KEY' in os.environ and 'SSL_CERT' in os.environ:
         wsgi.WSGIServer((options.web_host, options.port), app, log=None, keyfile=os.environ['SSL_KEY'], certfile=os.environ['SSL_CERT'], ssl_version=ssl.PROTOCOL_TLSv1).serve_forever()
     else:
-    wsgi.WSGIServer((options.web_host, options.port), app, log=None).serve_forever()
+        wsgi.WSGIServer((options.web_host, options.port), app, log=None).serve_forever()
 
 def _sort_stats(stats):
     return [stats[key] for key in sorted(stats.iterkeys())]
