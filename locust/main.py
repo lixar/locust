@@ -10,6 +10,7 @@ import logging
 import socket
 import time
 from optparse import OptionParser
+from .reports_csv import write_exceptions_csv, write_distribution_stats_csv, write_request_stats_csv
 
 import web
 from log import setup_logging, console_logger
@@ -257,6 +258,14 @@ def parse_options():
         help="when hatching completes, do not reset the current run's stats"
     )
 
+    parser.add_option(
+        '--csv-reports-dir',
+        dest='csv_reports_dir',
+        type=str,
+        default=None,
+        help='write the exceptions, stats and distributions reports to a csv file on testing stop'
+    )
+
     # Finalize
     # Return three-tuple of parser + the output from parse_args (opt obj, args)
     opts, args = parser.parse_args()
@@ -460,6 +469,28 @@ def main():
     if not options.only_summary and (options.print_stats or (options.no_web and not options.slave)):
         # spawn stats printing greenlet
         gevent.spawn(stats_printer)
+
+    def write_logs():
+        epoch_time = time.time()
+        def get_next_file(output_folder, file_name_root):
+            output_file = os.path.join(output_folder, file_name_root + str(epoch_time)) + '.csv'
+            return output_file
+
+        try:
+            os.makedirs(options.csv_reports_dir)
+        except OSError:
+            pass
+
+        with open(get_next_file(options.csv_reports_dir, 'exceptions'), 'w') as exceptions_csv:
+            write_exceptions_csv(exceptions_csv)
+        if not options.slave:
+            with open(get_next_file(options.csv_reports_dir, 'stats'), 'w') as stats_csv:
+                write_request_stats_csv(stats_csv)
+            with open(get_next_file(options.csv_reports_dir, 'distribution'), 'w') as percentile_csv:
+                write_distribution_stats_csv(percentile_csv)
+
+    if options.csv_reports_dir != None:
+        events.stopping += write_logs
 
     def shutdown(code=0):
         """
