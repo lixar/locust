@@ -1,6 +1,7 @@
 import time
 import gevent
 import hashlib
+from collections import defaultdict
 
 import events
 from exception import StopLocust
@@ -21,15 +22,16 @@ class RequestStats(object):
         self.max_requests = None
         self.last_request_timestamp = None
         self.start_time = None
-    
-    def get(self, name, method):
+
+    def get(self, name, method, **test_identifiers):
         """
         Retrieve a StatsEntry instance by name and method
         """
-        entry = self.entries.get((name, method))
+        entry_key = (name, method) + tuple(value for value in test_identifiers.values() if hasattr(value, '__hash__'))
+        entry = self.entries.get(entry_key)
         if not entry:
-            entry = StatsEntry(self, name, method)
-            self.entries[(name, method)] = entry
+            entry = StatsEntry(self, name, method, **test_identifiers)
+            self.entries[entry_key] = entry
         return entry
     
     def aggregated_stats(self, name="Total", full_request_history=False):
@@ -113,11 +115,12 @@ class StatsEntry(object):
     
     last_request_timestamp = None
     """ Time of the last request for this entry """
-    
-    def __init__(self, stats, name, method):
+
+    def __init__(self, stats, name, method, **kwargs):
         self.stats = stats
         self.name = name
         self.method = method
+        self.custom_stats = kwargs
         self.reset()
     
     def reset(self):
@@ -264,7 +267,7 @@ class StatsEntry(object):
                     self.num_reqs_per_sec[i] = self.num_reqs_per_sec.get(i, 0) + other.num_reqs_per_sec[i]
     
     def serialize(self):
-        return {
+        result = {
             "name": self.name,
             "method": self.method,
             "last_request_timestamp": self.last_request_timestamp,
@@ -278,10 +281,12 @@ class StatsEntry(object):
             "response_times": self.response_times,
             "num_reqs_per_sec": self.num_reqs_per_sec,
         }
-    
+        result.update(self.custom_stats)
+        return result
+
     @classmethod
     def unserialize(cls, data):
-        obj = cls(None, data["name"], data["method"])
+        obj = cls(None, data["name"], data["method"], **(data.get('custom_stats', {})))
         for key in [
             "last_request_timestamp",
             "start_time",
@@ -415,12 +420,12 @@ A global instance for holding the statistics. Should be removed eventually.
 def on_request_success(request_type, name, response_time, response_length):
     if global_stats.max_requests is not None and (global_stats.num_requests + global_stats.num_failures) >= global_stats.max_requests:
         raise StopLocust("Maximum number of requests reached")
-    global_stats.get(name, request_type).log(response_time, response_length)
+    global_stats.get(name, request_type, **kwargs).log(response_time, response_length)
 
 def on_request_failure(request_type, name, response_time, exception):
     if global_stats.max_requests is not None and (global_stats.num_requests + global_stats.num_failures) >= global_stats.max_requests:
         raise StopLocust("Maximum number of requests reached")
-    global_stats.get(name, request_type).log_error(exception)
+    global_stats.get(name, request_type, **kwargs).log_error(exception)
 
 def on_report_to_master(client_id, data):
     data["stats"] = [global_stats.entries[key].get_stripped_report() for key in global_stats.entries.iterkeys() if not (global_stats.entries[key].num_requests == 0 and global_stats.entries[key].num_failures == 0)]
