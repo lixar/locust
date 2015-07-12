@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 from .reports_csv import write_exceptions_csv, write_distribution_stats_csv, write_request_stats_csv
 
 import web
-from log import setup_logging, console_logger
+from log import setup_logging, console_logger, setup_csv_logging
 from stats import stats_printer, print_percentile_stats, print_error_report, print_stats
 from inspectlocust import print_task_ratio, get_task_ratio_dict
 from core import Locust, HttpLocust
@@ -266,6 +266,15 @@ def parse_options():
         help='write the exceptions, stats and distributions reports to a csv file on testing stop'
     )
 
+    parser.add_argument(
+        '--custom-event-keys',
+        dest='custom_event_keys',
+        type=str,
+        nargs='+',
+        default=None,
+        help=''
+    )
+
     # Finalize
     # Return three-tuple of parser + the output from parse_args (opt obj, args)
     opts, args = parser.parse_known_args()
@@ -470,27 +479,27 @@ def main():
         # spawn stats printing greenlet
         gevent.spawn(stats_printer)
 
-    def write_logs():
+    
+
+    if options.csv_reports_dir != None:
         epoch_time = long(round(time.time()))
         def get_next_file(output_folder, file_name_root):
             output_file = os.path.join(output_folder, file_name_root + '_' + str(epoch_time)) + '.csv'
             return output_file
-
-        try:
-            os.makedirs(options.csv_reports_dir)
-        except OSError:
-            pass
-
-        with open(get_next_file(options.csv_reports_dir, 'exceptions'), 'w') as exceptions_csv:
-            write_exceptions_csv(exceptions_csv)
-        if not options.slave:
-            with open(get_next_file(options.csv_reports_dir, 'stats'), 'w') as stats_csv:
-                write_request_stats_csv(stats_csv)
-            with open(get_next_file(options.csv_reports_dir, 'distribution'), 'w') as percentile_csv:
-                write_distribution_stats_csv(percentile_csv)
-
-    if options.csv_reports_dir != None:
+        def write_logs():
+            try:
+                os.makedirs(options.csv_reports_dir)
+            except OSError:
+                pass
+            with open(get_next_file(options.csv_reports_dir, 'exceptions'), 'w') as exceptions_csv:
+                write_exceptions_csv(exceptions_csv)
+            if not options.slave:
+                with open(get_next_file(options.csv_reports_dir, 'stats'), 'w') as stats_csv:
+                    write_request_stats_csv(stats_csv)
+                with open(get_next_file(options.csv_reports_dir, 'distribution'), 'w') as percentile_csv:
+                    write_distribution_stats_csv(percentile_csv)
         events.stopping += write_logs
+        setup_csv_logging(get_next_file(options.csv_reports_dir, 'details'), options.custom_event_keys)
 
     def shutdown(code=0):
         """
